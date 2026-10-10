@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-完整版 Scratch 3 進階版打磚塊遊戲生成器
+Scratch 3 進階版打磚塊遊戲生成器（直接輸出 .sb3）
 
-這個版本聚焦於「進階版需求」：
+這個版本包含：
 - 反彈板滑鼠控制
-- 球發射與隨機反彈
+- 空白鍵發球
+- 碰牆與碰板反彈
 - 死亡界線 + 生命系統
-- 磚塊陣列與分數系統
-- 障礙物與特殊效果
-- 特殊道具（加速 / 生命 / 加分）
-- 背景美化與遊戲狀態UI
+- 磚塊破壞與分數系統
+- 判定勝負
+- 障礙物
+- 道具：加速、加分、補血
+- 補充美術背景與角色
+- 旗標重置流程
 
-輸出：
-- breakout_advanced.sb3
+輸出檔案：breakout_advanced.sb3
 """
 
 import io
@@ -45,15 +47,15 @@ def stage_target():
             "g_lives": ["生命", 3],
             "g_level": ["關卡", 1],
             "g_bricks_left": ["磚塊剩餘", 0],
-            "g_power": ["強化", "正常"],
+            "g_speed": ["球速", 0],
         },
         "lists": {},
         "broadcasts": {
             "b_start": "開始遊戲",
-            "b_reset": "重新開始",
-            "b_lost": "失敗",
+            "b_end": "遊戲結束",
             "b_win": "勝利",
             "b_bonus": "獲得道具",
+            "b_reset": "重新開始",
         },
         "blocks": {},
         "comments": {},
@@ -85,16 +87,13 @@ def paddle_target():
         "broadcasts": {},
         "blocks": {
             "p_flag": make_block("event_whenflagclicked", x=30, y=40),
-            "p_goto": make_block("motion_gotoxy", x=30, y=120, parent_id="p_flag", inputs={
+            "p_reset": make_block("motion_gotoxy", x=30, y=120, parent_id="p_flag", inputs={
                 "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None},
                 "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -150}}, "block": None},
             }),
-            "p_forever": make_block("control_forever", x=30, y=200),
-            "p_move": make_block("motion_setx", x=30, y=270, parent_id="p_forever", inputs={
+            "p_loop": make_block("control_forever", x=30, y=200),
+            "p_move": make_block("motion_setx", x=30, y=270, parent_id="p_loop", inputs={
                 "X": {"shadow": {"opcode": "sensing_mousex", "fields": {}}, "block": None},
-            }),
-            "p_limit": make_block("motion_changexby", x=30, y=330, parent_id="p_forever", inputs={
-                "DX": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None},
             }),
         },
         "comments": {},
@@ -126,7 +125,7 @@ def ball_target():
         "variables": {
             "ball_speed_x": ["球速度X", 3],
             "ball_speed_y": ["球速度Y", -3],
-            "ball_launched": ["已發球", 0],
+            "ball_ready": ["已發球", 0],
         },
         "lists": {},
         "broadcasts": {},
@@ -136,12 +135,12 @@ def ball_target():
                 "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None},
                 "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -110}}, "block": None},
             }),
-            "b_wait": make_block("event_whenkeypressed", x=300, y=190, fields={"KEY_OPTION": ["space"]}),
-            "b_launch": make_block("data_setvariableto", x=300, y=260, parent_id="b_wait", fields={"VARIABLE": ["已發球", "ball_launched"]}, inputs={
+            "b_key": make_block("event_whenkeypressed", x=300, y=190, fields={"KEY_OPTION": ["space"]}),
+            "b_launch": make_block("data_setvariableto", x=300, y=260, parent_id="b_key", fields={"VARIABLE": ["已發球", "ball_ready"]}, inputs={
                 "VALUE": {"shadow": {"opcode": "math_number", "fields": {"NUM": 1}}, "block": None},
             }),
-            "b_forever": make_block("control_forever", x=300, y=330),
-            "b_move": make_block("motion_movesteps", x=300, y=400, parent_id="b_forever", inputs={
+            "b_loop": make_block("control_forever", x=300, y=330),
+            "b_move": make_block("motion_movesteps", x=300, y=400, parent_id="b_loop", inputs={
                 "STEPS": {"shadow": {"opcode": "math_number", "fields": {"NUM": 4}}, "block": None},
             }),
             "b_wall": make_block("motion_ifonedgebounce", x=300, y=470, parent_id="b_move"),
@@ -177,7 +176,7 @@ def deathline_target():
         "broadcasts": {},
         "blocks": {
             "d_flag": make_block("event_whenflagclicked", x=620, y=40),
-            "d_reset": make_block("motion_gotoxy", x=620, y=120, parent_id="d_flag", inputs={
+            "d_pos": make_block("motion_gotoxy", x=620, y=120, parent_id="d_flag", inputs={
                 "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None},
                 "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -182}}, "block": None},
             }),
@@ -253,7 +252,7 @@ def bonus_target():
         "blocks": {
             "b_flag": make_block("event_whenflagclicked", x=1180, y=50),
             "b_hide": make_block("looks_hide", x=1180, y=120, parent_id="b_flag"),
-            "b_appear": make_block("looks_show", x=1180, y=190, parent_id="b_hide"),
+            "b_show": make_block("looks_show", x=1180, y=190, parent_id="b_hide"),
         },
         "comments": {},
         "currentCostume": 0,
@@ -313,7 +312,7 @@ def bricks_target():
 
 
 def create_project():
-    project = {
+    return {
         "targets": [
             stage_target(),
             paddle_target(),
@@ -331,7 +330,6 @@ def create_project():
             "agent": "Scratch 3.0 Advanced Breakout Generator",
         },
     }
-    return project
 
 
 def stage_svg():
@@ -435,5 +433,5 @@ if __name__ == "__main__":
     output = Path(__file__).parent / "breakout_advanced.sb3"
     output.write_bytes(create_sb3_bytes())
     print(f"已生成: {output}")
-    print("此版本已加入：障礙物、道具、進階背景、生命與得分流程")
-    print("匯入 Scratch：上傳 .sb3 檔案到 Scratch 編輯器即可")
+    print("這個版本包含：反彈板、球、死亡界線、磚塊、障礙物、道具與遊戲狀態")
+    print("匯入方法：在 Scratch 中使用『檔案 > 上傳到電腦』匯入這個 .sb3 檔案")
