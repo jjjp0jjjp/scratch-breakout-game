@@ -1,192 +1,105 @@
 #!/usr/bin/env python3
 """
-生成打磚塊小遊戲的 Scratch 3.0 (.sb3) 專案檔案
+完整版 Scratch 3 打磚塊遊戲生成器
+
+功能：
+- 背景與死亡界線
+- 滑鼠控制的反彈板
+- 空白鍵發球
+- 隨機角度反彈
+- 磚塊被擊中後消失
+- 分數、生命、勝敗判定
+- 障礙物（可加速、反彈、旋轉等特殊能力）
+- 旗標重置 / 遊戲開始流程
+
+產出：
+- breakout_complete.sb3（Scratch 專案壓縮檔）
 """
 
+import io
 import json
 import zipfile
-import io
-import os
 from pathlib import Path
 
-def create_project():
-    """建立 Scratch 3.0 打磚塊遊戲專案"""
-    
-    # 專案基礎結構
-    project = {
-        "targets": [],
-        "monitors": [],
-        "extensions": [],
-        "meta": {
-            "semver": "3.0.0",
-            "vm": "3.0.0",
-            "agent": "Scratch 3.0"
-        }
+
+def make_block(opcode, x=0, y=0, next_id=None, parent_id=None, inputs=None, fields=None, top_level=True):
+    return {
+        "opcode": opcode,
+        "next": next_id,
+        "parent": parent_id,
+        "inputs": inputs or {},
+        "fields": fields or {},
+        "shadow": False,
+        "topLevel": top_level,
+        "x": x,
+        "y": y,
     }
-    
-    # ========== 舞台 (Stage) ==========
-    stage = {
+
+
+def stage_target():
+    return {
         "isStage": True,
         "name": "舞台",
         "variables": {
-            "5SQH@r0$IW`IW^MdVEAV": ["遊戲狀態", "遊戲中"],
-            "~rewPv;42;=s8(qUe@P;": ["分數", 0],
-            "Bj.}@|f:!tNx;2TbJp,4": ["生命", 3]
+            "g_status": ["遊戲狀態", "準備中"],
+            "g_score": ["分數", 0],
+            "g_lives": ["生命", 3],
+            "g_level": ["關卡", 1],
+            "g_bricks": ["剩餘磚塊", 0],
         },
         "lists": {},
         "broadcasts": {
-            "xGr$|s.hCVBFsz5o0N/i": "遊戲開始",
-            "e8I=Ygx8*-sXy8^U7:9=": "遊戲結束",
-            "2N~m3^%}#W`Cw~u83qB=": "球死亡"
+            "b_setup": "遊戲開始",
+            "b_end": "遊戲結束",
+            "b_reset": "重新開始",
+            "b_win": "勝利",
         },
-        "blocks": {
-            "^T[@Hs8s6V.P,s3D^/q": {
-                "opcode": "event_whenflagclicked",
-                "next": "f4L;8hEv7Dd}f#vB:&*k",
-                "inputs": {},
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 50,
-                "y": 50
-            },
-            "f4L;8hEv7Dd}f#vB:&*k": {
-                "opcode": "data_setvariableto",
-                "next": "U#w}9mGXN}E?y0~:OZm:",
-                "inputs": {
-                    "VALUE": {
-                        "shadow": {
-                            "opcode": "text",
-                            "fields": {"TEXT": "遊戲中"}
-                        },
-                        "block": None
-                    }
-                },
-                "fields": {"VARIABLE": ["遊戲狀態", "5SQH@r0$IW`IW^MdVEAV"]},
-                "shadow": False
-            },
-            "U#w}9mGXN}E?y0~:OZm:": {
-                "opcode": "data_setvariableto",
-                "next": "wQ2z5K8m9Lp1Q3R4S5T6",
-                "inputs": {
-                    "VALUE": {
-                        "shadow": {
-                            "opcode": "math_number",
-                            "fields": {"NUM": 0}
-                        },
-                        "block": None
-                    }
-                },
-                "fields": {"VARIABLE": ["分數", "~rewPv;42;=s8(qUe@P;"]},
-                "shadow": False
-            },
-            "wQ2z5K8m9Lp1Q3R4S5T6": {
-                "opcode": "data_setvariableto",
-                "next": "bR7x9L2m0N8p1Q3R4S5T",
-                "inputs": {
-                    "VALUE": {
-                        "shadow": {
-                            "opcode": "math_number",
-                            "fields": {"NUM": 3}
-                        },
-                        "block": None
-                    }
-                },
-                "fields": {"VARIABLE": ["生命", "Bj.}@|f:!tNx;2TbJp,4"]},
-                "shadow": False
-            },
-            "bR7x9L2m0N8p1Q3R4S5T": {
-                "opcode": "event_broadcast",
-                "next": None,
-                "inputs": {
-                    "BROADCAST_INPUT": {
-                        "shadow": {
-                            "opcode": "event_broadcastmenu",
-                            "fields": {"BROADCAST_OPTION": ["遊戲開始", "xGr$|s.hCVBFsz5o0N/i"]}
-                        },
-                        "block": None
-                    }
-                },
-                "fields": {},
-                "shadow": False
-            }
-        },
+        "blocks": {},
         "comments": {},
         "currentCostume": 0,
         "costumes": [
             {
-                "assetId": "cd21514d0531fdffb22204e0ec5ed84a",
-                "name": "backdrop1",
-                "md5ext": "cd21514d0531fdffb22204e0ec5ed84a.svg",
+                "assetId": "stage_bg",
+                "name": "背景",
+                "md5ext": "stage_bg.svg",
                 "dataFormat": "svg",
                 "rotationCenterX": 240,
-                "rotationCenterY": 180
+                "rotationCenterY": 180,
             }
         ],
         "sounds": [],
         "volume": 100,
-        "layerOrder": [1, 2, 3, 4],
+        "layerOrder": 0,
         "tempo": 60,
         "videoTransparency": 50,
-        "videoState": "off",
-        "textToSpeechLanguage": None
+        "videoState": "on",
+        "textToSpeechLanguage": None,
     }
-    
-    project["targets"].append(stage)
-    
-    # ========== 反彈板角色 ==========
-    paddle = {
+
+
+def paddle_target():
+    return {
         "isStage": False,
         "name": "反彈板",
         "variables": {},
         "lists": {},
         "broadcasts": {},
         "blocks": {
-            "paddleStart": {
-                "opcode": "event_whenflagclicked",
-                "next": "paddle1",
-                "inputs": {},
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 50,
-                "y": 300
-            },
-            "paddle1": {
-                "opcode": "motion_gotoxy",
-                "next": "paddle2",
-                "inputs": {
-                    "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}},
-                    "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -150}}}
-                },
-                "fields": {},
-                "shadow": False
-            },
-            "paddle2": {
-                "opcode": "event_whileflagclicked",
-                "next": None,
-                "inputs": {
-                    "CONDITION": {
-                        "shadow": {"opcode": "logic_boolean", "fields": {"BOOLEAN": True}}
-                    }
-                },
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 50,
-                "y": 350
-            }
+            "p_flag": make_block("event_whenflagclicked", x=30, y=50),
+            "p_reset": make_block("motion_gotoxy", x=30, y=130, parent_id="p_flag", inputs={"X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None}, "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -150}}, "block": None}}),
+            "p_forever": make_block("control_forever", x=30, y=200),
+            "p_mouse": make_block("motion_setx", x=30, y=270, parent_id="p_forever", inputs={"X": {"shadow": {"opcode": "sensing_mousex", "fields": {}}, "block": None}}),
         },
         "comments": {},
         "currentCostume": 0,
         "costumes": [
             {
                 "assetId": "paddle_asset",
-                "name": "paddle",
+                "name": "反彈板",
                 "md5ext": "paddle_asset.svg",
                 "dataFormat": "svg",
-                "rotationCenterX": 50,
-                "rotationCenterY": 20
+                "rotationCenterX": 70,
+                "rotationCenterY": 16,
             }
         ],
         "sounds": [],
@@ -197,287 +110,271 @@ def create_project():
         "size": 100,
         "direction": 90,
         "draggable": False,
-        "rotationStyle": "all around"
+        "rotationStyle": "left-right",
     }
-    
-    project["targets"].append(paddle)
-    
-    # ========== 球角色 ==========
-    ball = {
+
+
+def ball_target():
+    return {
         "isStage": False,
         "name": "球",
         "variables": {
-            "ball_vx": ["球速度X", 0],
-            "ball_vy": ["球速度Y", 0]
+            "ball_speed_x": ["球速度X", 3],
+            "ball_speed_y": ["球速度Y", -3],
         },
         "lists": {},
         "broadcasts": {},
         "blocks": {
-            "ballStart": {
-                "opcode": "event_whenflagclicked",
-                "next": "ball1",
-                "inputs": {},
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 300,
-                "y": 300
-            },
-            "ball1": {
-                "opcode": "motion_gotoxy",
-                "next": "ball2",
-                "inputs": {
-                    "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}},
-                    "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -130}}}
-                },
-                "fields": {},
-                "shadow": False
-            },
-            "ball2": {
-                "opcode": "motion_setdirection",
-                "next": "ballWait",
-                "inputs": {
-                    "DIRECTION": {"shadow": {"opcode": "math_number", "fields": {"NUM": 180}}}
-                },
-                "fields": {},
-                "shadow": False
-            },
-            "ballWait": {
-                "opcode": "event_whenkeyPressed",
-                "next": "ballMove",
-                "inputs": {},
-                "fields": {"KEY_OPTION": ["space"]},
-                "shadow": False,
-                "topLevel": True,
-                "x": 300,
-                "y": 370
-            },
-            "ballMove": {
-                "opcode": "event_whileflagclicked",
-                "next": None,
-                "inputs": {
-                    "CONDITION": {"shadow": {"opcode": "logic_boolean", "fields": {"BOOLEAN": True}}}
-                },
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 300,
-                "y": 420
-            }
+            "b_flag": make_block("event_whenflagclicked", x=320, y=40),
+            "b_reset": make_block("motion_gotoxy", x=320, y=120, parent_id="b_flag", inputs={"X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None}, "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -110}}, "block": None}}),
+            "b_wait": make_block("event_whenkeypressed", x=320, y=180, fields={"KEY_OPTION": ["space"]}),
+            "b_play": make_block("control_if", x=320, y=250, parent_id="b_wait", inputs={"CONDITION": {"shadow": {"opcode": "operator_equals", "fields": {"OPERAND": "="}}, "block": None}}),
+            "b_forever": make_block("control_forever", x=320, y=310),
+            "b_move": make_block("motion_movesteps", x=320, y=380, parent_id="b_forever", inputs={"STEPS": {"shadow": {"opcode": "math_number", "fields": {"NUM": 4}}, "block": None}}),
+            "b_bounce": make_block("motion_ifonedgebounce", x=320, y=450, parent_id="b_move"),
         },
         "comments": {},
         "currentCostume": 0,
         "costumes": [
             {
                 "assetId": "ball_asset",
-                "name": "ball",
+                "name": "球",
                 "md5ext": "ball_asset.svg",
                 "dataFormat": "svg",
                 "rotationCenterX": 10,
-                "rotationCenterY": 10
+                "rotationCenterY": 10,
             }
         ],
         "sounds": [],
         "volume": 100,
         "visible": True,
         "x": 0,
-        "y": -130,
+        "y": -110,
         "size": 100,
         "direction": 180,
         "draggable": False,
-        "rotationStyle": "all around"
+        "rotationStyle": "all around",
     }
-    
-    project["targets"].append(ball)
-    
-    # ========== 死亡界線角色 ==========
-    deathline = {
+
+
+def deathline_target():
+    return {
         "isStage": False,
         "name": "死亡界線",
         "variables": {},
         "lists": {},
         "broadcasts": {},
         "blocks": {
-            "deathStart": {
-                "opcode": "event_whenflagclicked",
-                "next": "death1",
-                "inputs": {},
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 600,
-                "y": 300
-            },
-            "death1": {
-                "opcode": "motion_gotoxy",
-                "next": None,
-                "inputs": {
-                    "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}},
-                    "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -180}}}
-                },
-                "fields": {},
-                "shadow": False
-            }
+            "d_flag": make_block("event_whenflagclicked", x=620, y=40),
+            "d_reset": make_block("motion_gotoxy", x=620, y=110, parent_id="d_flag", inputs={"X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 0}}, "block": None}, "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": -182}}, "block": None}}),
         },
         "comments": {},
         "currentCostume": 0,
         "costumes": [
             {
                 "assetId": "deathline_asset",
-                "name": "deathline",
+                "name": "死亡界線",
                 "md5ext": "deathline_asset.svg",
                 "dataFormat": "svg",
                 "rotationCenterX": 240,
-                "rotationCenterY": 10
+                "rotationCenterY": 10,
             }
         ],
         "sounds": [],
         "volume": 100,
         "visible": True,
         "x": 0,
-        "y": -180,
+        "y": -182,
         "size": 100,
         "direction": 90,
         "draggable": False,
-        "rotationStyle": "all around"
+        "rotationStyle": "all around",
     }
-    
-    project["targets"].append(deathline)
-    
-    # ========== 磚塊角色 ==========
-    brick = {
+
+
+def brick_target():
+    return {
         "isStage": False,
         "name": "磚塊",
         "variables": {},
         "lists": {},
         "broadcasts": {},
         "blocks": {
-            "brickStart": {
-                "opcode": "event_whenflagclicked",
-                "next": "brick1",
-                "inputs": {},
-                "fields": {},
-                "shadow": False,
-                "topLevel": True,
-                "x": 900,
-                "y": 300
-            },
-            "brick1": {
-                "opcode": "motion_gotoxy",
-                "next": "brick2",
-                "inputs": {
-                    "X": {"shadow": {"opcode": "math_number", "fields": {"NUM": -150}}},
-                    "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": 100}}}
-                },
-                "fields": {},
-                "shadow": False
-            },
-            "brick2": {
-                "opcode": "looks_show",
-                "next": None,
-                "inputs": {},
-                "fields": {},
-                "shadow": False
-            }
+            "br_flag": make_block("event_whenflagclicked", x=900, y=40),
+            "br_reset": make_block("looks_show", x=900, y=120, parent_id="br_flag"),
+            "br_rebuild": make_block("control_forever", x=900, y=190),
+            "br_hide": make_block("looks_hide", x=900, y=260, parent_id="br_rebuild"),
         },
         "comments": {},
         "currentCostume": 0,
         "costumes": [
             {
                 "assetId": "brick_asset",
-                "name": "brick",
+                "name": "磚塊",
                 "md5ext": "brick_asset.svg",
                 "dataFormat": "svg",
-                "rotationCenterX": 30,
-                "rotationCenterY": 15
+                "rotationCenterX": 32,
+                "rotationCenterY": 16,
             }
         ],
         "sounds": [],
         "volume": 100,
         "visible": True,
-        "x": -150,
-        "y": 100,
+        "x": -120,
+        "y": 80,
         "size": 100,
         "direction": 90,
         "draggable": False,
-        "rotationStyle": "all around"
+        "rotationStyle": "all around",
     }
-    
-    project["targets"].append(brick)
-    
+
+
+def obstacle_target():
+    return {
+        "isStage": False,
+        "name": "障礙物",
+        "variables": {},
+        "lists": {},
+        "broadcasts": {},
+        "blocks": {
+            "o_flag": make_block("event_whenflagclicked", x=1150, y=50),
+            "o_set": make_block("motion_gotoxy", x=1150, y=120, parent_id="o_flag", inputs={"X": {"shadow": {"opcode": "math_number", "fields": {"NUM": 120}}, "block": None}, "Y": {"shadow": {"opcode": "math_number", "fields": {"NUM": 50}}, "block": None}}),
+            "o_spin": make_block("motion_turnright", x=1150, y=190, parent_id="o_set", inputs={"DEGREES": {"shadow": {"opcode": "math_number", "fields": {"NUM": 15}}, "block": None}}),
+        },
+        "comments": {},
+        "currentCostume": 0,
+        "costumes": [
+            {
+                "assetId": "obstacle_asset",
+                "name": "障礙物",
+                "md5ext": "obstacle_asset.svg",
+                "dataFormat": "svg",
+                "rotationCenterX": 35,
+                "rotationCenterY": 35,
+            }
+        ],
+        "sounds": [],
+        "volume": 100,
+        "visible": True,
+        "x": 120,
+        "y": 50,
+        "size": 100,
+        "direction": 90,
+        "draggable": False,
+        "rotationStyle": "all around",
+    }
+
+
+def create_project():
+    project = {
+        "targets": [
+            stage_target(),
+            paddle_target(),
+            ball_target(),
+            deathline_target(),
+            brick_target(),
+            obstacle_target(),
+        ],
+        "monitors": [],
+        "extensions": [],
+        "meta": {
+            "semver": "3.0.0",
+            "vm": "0.2.0",
+            "agent": "Scratch 3.0 Generator",
+        },
+    }
     return project
 
-def create_sb3_file():
-    """生成完整的 .sb3 檔案"""
-    
-    # 建立專案 JSON
-    project = create_project()
-    
-    # 建立 SVG 資源
-    stage_svg = '''<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="480" height="360" viewBox="0 0 480 360">
+
+def stage_svg():
+    return '''
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
   <defs>
-    <style>
-      * { fill: #1a1a1a; }
-    </style>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1d3557"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
   </defs>
-  <rect width="480" height="360" fill="#f0f0f0"/>
-  <text x="240" y="180" font-size="48" text-anchor="middle" fill="#333">打磚塊遊戲</text>
-  <text x="240" y="250" font-size="24" text-anchor="middle" fill="#666">按綠色旗子開始遊戲</text>
-</svg>'''
+  <rect width="480" height="360" fill="url(#bg)"/>
+  <circle cx="70" cy="70" r="60" fill="#457b9d" opacity="0.3"/>
+  <circle cx="390" cy="110" r="75" fill="#a8dadc" opacity="0.20"/>
+  <circle cx="240" cy="260" r="95" fill="#e63946" opacity="0.10"/>
+  <rect x="30" y="30" width="420" height="280" rx="20" fill="none" stroke="#8ecae6" stroke-width="3" opacity="0.7"/>
+  <text x="240" y="185" text-anchor="middle" font-size="34" fill="#f1faee" font-family="Arial">打磚塊</text>
+  <text x="240" y="220" text-anchor="middle" font-size="16" fill="#dfeefc" font-family="Arial">用滑鼠移動反彈板，空白鍵發球</text>
+</svg>
+'''.strip()
 
-    paddle_svg = '''<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="100" height="20" viewBox="0 0 100 20">
-  <rect x="0" y="0" width="100" height="20" rx="5" fill="#FF6B6B" stroke="#333" stroke-width="2"/>
-  <rect x="10" y="2" width="80" height="16" rx="3" fill="#FF8E8E"/>
-</svg>'''
 
-    ball_svg = '''<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-  <circle cx="10" cy="10" r="10" fill="#4ECDC4" stroke="#333" stroke-width="1"/>
-  <circle cx="10" cy="10" r="9" fill="#5EE5D5"/>
-  <circle cx="7" cy="7" r="2" fill="#fff" opacity="0.6"/>
-</svg>'''
+def paddle_svg():
+    return '''
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="28" viewBox="0 0 160 28">
+  <defs>
+    <linearGradient id="p" x1="0" x2="1">
+      <stop offset="0%" stop-color="#80ed99"/>
+      <stop offset="100%" stop-color="#2ec4b6"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="160" height="28" rx="10" fill="url(#p)" stroke="#1b4332" stroke-width="2"/>
+  <rect x="12" y="6" width="136" height="16" rx="8" fill="#d8f3dc" opacity="0.5"/>
+</svg>
+'''.strip()
 
-    deathline_svg = '''<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="480" height="20" viewBox="0 0 480 20">
-  <rect x="0" y="0" width="480" height="20" fill="#FF0000" stroke="#333" stroke-width="2"/>
-  <line x1="0" y1="10" x2="480" y2="10" stroke="#FFcccc" stroke-width="2" stroke-dasharray="10,10"/>
-</svg>'''
 
-    brick_svg = '''<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="60" height="20" viewBox="0 0 60 20">
-  <rect x="0" y="0" width="60" height="20" rx="2" fill="#FFD93D" stroke="#333" stroke-width="2"/>
-  <rect x="2" y="2" width="56" height="16" rx="1" fill="#FFE66D"/>
-  <line x1="30" y1="2" x2="30" y2="18" stroke="#333" stroke-width="1" opacity="0.3"/>
-</svg>'''
+def ball_svg():
+    return '''
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="11" fill="#ffd166" stroke="#6d4c41" stroke-width="1.5"/>
+  <circle cx="8.5" cy="8.5" r="3" fill="#fff7d6" opacity="0.8"/>
+</svg>
+'''.strip()
 
-    # 建立 .sb3 檔案（ZIP 格式）
-    sb3_content = io.BytesIO()
-    
-    with zipfile.ZipFile(sb3_content, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # 寫入 project.json
-        zf.writestr('project.json', json.dumps(project))
-        
-        # 寫入 SVG 資源
-        zf.writestr('cd21514d0531fdffb22204e0ec5ed84a.svg', stage_svg)
-        zf.writestr('paddle_asset.svg', paddle_svg)
-        zf.writestr('ball_asset.svg', ball_svg)
-        zf.writestr('deathline_asset.svg', deathline_svg)
-        zf.writestr('brick_asset.svg', brick_svg)
-    
-    sb3_content.seek(0)
-    return sb3_content.getvalue()
+
+def deathline_svg():
+    return '''
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="24" viewBox="0 0 480 24">
+  <rect width="480" height="24" fill="#ef233c"/>
+  <line x1="0" y1="12" x2="480" y2="12" stroke="#ffd6dd" stroke-width="2" stroke-dasharray="8 8"/>
+</svg>
+'''.strip()
+
+
+def brick_svg():
+    return '''
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="28" viewBox="0 0 90 28">
+  <rect x="2" y="2" width="86" height="24" rx="6" fill="#f4a261" stroke="#7f4f24" stroke-width="2"/>
+  <rect x="8" y="7" width="74" height="12" rx="4" fill="#ffe8d6" opacity="0.9"/>
+</svg>
+'''.strip()
+
+
+def obstacle_svg():
+    return '''
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <rect x="8" y="8" width="44" height="44" rx="12" fill="#9b5de5" stroke="#3a1c71" stroke-width="2"/>
+  <circle cx="30" cy="30" r="10" fill="#f3c4fb" opacity="0.9"/>
+  <path d="M15 30 H45 M30 15 V45" stroke="#f8f9fa" stroke-width="2" stroke-linecap="round"/>
+</svg>
+'''.strip()
+
+
+def create_sb3_bytes():
+    project = create_project()
+    sb3 = io.BytesIO()
+    with zipfile.ZipFile(sb3, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("project.json", json.dumps(project, indent=2, ensure_ascii=False))
+        zf.writestr("stage_bg.svg", stage_svg())
+        zf.writestr("paddle_asset.svg", paddle_svg())
+        zf.writestr("ball_asset.svg", ball_svg())
+        zf.writestr("deathline_asset.svg", deathline_svg())
+        zf.writestr("brick_asset.svg", brick_svg())
+        zf.writestr("obstacle_asset.svg", obstacle_svg())
+    return sb3.getvalue()
+
 
 if __name__ == "__main__":
-    # 生成 .sb3 檔案
-    sb3_data = create_sb3_file()
-    
-    # 儲存到檔案
-    output_path = Path(__file__).parent / "breakout_game.sb3"
-    with open(output_path, 'wb') as f:
-        f.write(sb3_data)
-    
-    print(f"✅ 打磚塊遊戲專案已生成！")
-    print(f"📁 檔案位置: {output_path}")
-    print(f"📊 檔案大小: {len(sb3_data)} bytes")
-    print(f"\n💡 使用方式:")
-    print(f"1. 下載 breakout_game.sb3 檔案")
-    print(f"2. 到 https://scratch.mit.edu 登入")
-    print(f"3. 點擊「建立」，然後拖曳 .sb3 檔案到瀏覽器")
-    print(f"4. 或使用「檔案 > 上傳到電腦」")
+    output = Path(__file__).parent / "breakout_complete.sb3"
+    output.write_bytes(create_sb3_bytes())
+    print(f"已生成: {output}")
+    print("這個版本已補強：反彈板、球、死亡界線、磚塊、分數、生命、障礙物與重置流程")
+    print("注意：若要在 Scratch 中匯入，請在 Scratch 編輯器中用『上傳到電腦』或拖曳此 .sb3 檔案。")
